@@ -1,0 +1,7 @@
+pandas
+numpy
+pyarrow
+requests
+boto3
+duckdb==1.2.2
+python-dotenv
