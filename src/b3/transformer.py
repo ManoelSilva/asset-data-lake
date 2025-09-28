@@ -1,8 +1,9 @@
-import pandas as pd
-import numpy as np
-import concurrent.futures
 import logging
 import time
+
+import numpy as np
+import pandas as pd
+
 
 class B3Transformer(object):
     @staticmethod
@@ -14,13 +15,20 @@ class B3Transformer(object):
         # Remove columns that are all null
         df = df.loc[:, df.notnull().any()]
         logging.info(f"Removed columns that are all null")
-
-        # One-hot encode 'type', 'market', 'currency' (if not too many unique values)
-        for col in ['type', 'market', 'currency']:
-            if df[col].nunique() < 20:
-                dummies = pd.get_dummies(df[col], prefix=col)
-                df = pd.concat([df, dummies], axis=1)
         
+        # Handle missing market column by creating dummy value
+        if 'market' not in df.columns:
+            logging.warning("Market column not found, creating dummy market column with value '000'")
+            df['market'] = '000'
+
+        try:
+            # One-hot encode 'type', 'market', 'currency' (if not too many unique values)
+            for col in ['type', 'market', 'currency']:
+                if df[col].nunique() < 20:
+                    dummies = pd.get_dummies(df[col], prefix=col)
+                    df = pd.concat([df, dummies], axis=1)
+        except Exception as e:
+            logging.exception(f"Exception while transforming B3 hist quota {e}")
         # Parse date
         df['date'] = pd.to_datetime(df['date'])
         # Sort for rolling features
@@ -83,7 +91,9 @@ class B3Transformer(object):
         # Close to best buy
         df['close_to_best_buy'] = (df['close'] - df['best_buy']) / df['best_buy']
         # Market type NM one-hot
-        df['market_type_NM'] = (df['market'].astype(str).str.contains('NM')).astype(int)
+        # Handle null/empty market values by filling with dummy value
+        df['market'] = df['market'].fillna('000').astype(str)
+        df['market_type_NM'] = (df['market'].str.contains('NM')).astype(int)
         # Asset type ON one-hot
         df['asset_type_ON'] = (df['type'].astype(str).str.contains('ON')).astype(int)
         # Day of week
