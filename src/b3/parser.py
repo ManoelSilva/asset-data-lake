@@ -5,7 +5,6 @@ class B3HistFileParser(object):
     def __init__(self, file_path: str):
         self._file_path = file_path
 
-
     def parse_b3_hist_quota(self) -> pd.DataFrame:
         colspecs = [
             (2, 10),  # date

@@ -1,8 +1,9 @@
-import pandas as pd
-import numpy as np
-import concurrent.futures
 import logging
 import time
+
+import numpy as np
+import pandas as pd
+
 
 class B3Transformer(object):
     @staticmethod
@@ -15,12 +16,19 @@ class B3Transformer(object):
         df = df.loc[:, df.notnull().any()]
         logging.info(f"Removed columns that are all null")
 
-        # One-hot encode 'type', 'market', 'currency' (if not too many unique values)
-        for col in ['type', 'market', 'currency']:
-            if df[col].nunique() < 20:
-                dummies = pd.get_dummies(df[col], prefix=col)
-                df = pd.concat([df, dummies], axis=1)
-        
+        # Handle missing market column by creating dummy value
+        if 'market' not in df.columns:
+            logging.warning("Market column not found, creating dummy market column with value '000'")
+            df['market'] = '000'
+
+        try:
+            # One-hot encode 'type', 'market', 'currency' (if not too many unique values)
+            for col in ['type', 'market', 'currency']:
+                if df[col].nunique() < 20:
+                    dummies = pd.get_dummies(df[col], prefix=col)
+                    df = pd.concat([df, dummies], axis=1)
+        except Exception as e:
+            logging.exception(f"Exception while transforming B3 hist quota {e}")
         # Parse date
         df['date'] = pd.to_datetime(df['date'])
         # Sort for rolling features
@@ -66,6 +74,7 @@ class B3Transformer(object):
         df['ema_12'] = grouped['close'].transform(lambda x: x.ewm(span=12, adjust=False).mean())
         df['ema_26'] = grouped['close'].transform(lambda x: x.ewm(span=26, adjust=False).mean())
         df['macd'] = df['ema_12'] - df['ema_26']
+
         # RSI (14)
         def rsi(series, window=14):
             delta = series.diff()
@@ -73,6 +82,7 @@ class B3Transformer(object):
             loss = (-delta.where(delta < 0, 0)).rolling(window=window).mean()
             rs = gain / loss
             return 100 - (100 / (1 + rs))
+
         df['rsi_14'] = grouped['close'].transform(rsi)
         # Volume change
         df['volume_change'] = grouped['volume'].pct_change()
@@ -83,7 +93,9 @@ class B3Transformer(object):
         # Close to best buy
         df['close_to_best_buy'] = (df['close'] - df['best_buy']) / df['best_buy']
         # Market type NM one-hot
-        df['market_type_NM'] = (df['market'].astype(str).str.contains('NM')).astype(int)
+        # Handle null/empty market values by filling with dummy value
+        df['market'] = df['market'].fillna('000').astype(str)
+        df['market_type_NM'] = (df['market'].str.contains('NM')).astype(int)
         # Asset type ON one-hot
         df['asset_type_ON'] = (df['type'].astype(str).str.contains('ON')).astype(int)
         # Day of week
@@ -94,11 +106,13 @@ class B3Transformer(object):
         df['high_breakout_20'] = grouped['high'].transform(lambda x: (x == x.rolling(20).max()).astype(int))
         # Bollinger upper (20-day MA + 2*std)
         df['bollinger_upper'] = grouped['close'].transform(lambda x: x.rolling(20).mean() + 2 * x.rolling(20).std())
+
         # Stochastic 14
         def stochastic_14(series):
             low14 = series.rolling(14).min()
             high14 = series.rolling(14).max()
             return 100 * (series - low14) / (high14 - low14)
+
         df['stochastic_14'] = grouped['close'].transform(stochastic_14)
         # Drop rows with any NaNs in engineered features
         df = df.dropna(subset=[
@@ -107,11 +121,12 @@ class B3Transformer(object):
             'price_momentum_5', 'high_breakout_20', 'bollinger_upper', 'stochastic_14'
         ])
         # Only keep the relevant columns
-        keep_cols = ['date', 'ticker', 'company', 'daily_return', 'rolling_volatility_5', 'moving_avg_10', 'macd', 'rsi_14',
+        keep_cols = ['date', 'ticker', 'company', 'daily_return', 'rolling_volatility_5', 'moving_avg_10', 'macd',
+                     'rsi_14',
                      'volume_change', 'avg_volume_10', 'best_buy_sell_spread', 'close_to_best_buy', 'market_type_NM',
-                     'asset_type_ON', 'day_of_week', 'price_momentum_5', 'high_breakout_20', 'bollinger_upper', 'stochastic_14']
+                     'asset_type_ON', 'day_of_week', 'price_momentum_5', 'high_breakout_20', 'bollinger_upper',
+                     'stochastic_14']
         df = df[keep_cols]
         elapsed = time.time() - start_time
         logging.info(f"Transforming B3 hist quota.. (end) Elapsed: {elapsed:.2f} seconds")
         return df.reset_index(drop=True)
-        
