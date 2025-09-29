@@ -1,0 +1,153 @@
+openapi: 3.0.3
+info:
+  title: Asset Data Lake API
+  description: API for querying and updating B3 asset data lake.
+  version: 1.0.0
+servers:
+  - url: http://localhost:5002
+paths:
+  /asset/{ticker}:
+    get:
+      summary: Get asset information by ticker symbol
+      tags:
+        - Assets
+      parameters:
+        - name: ticker
+          in: path
+          required: true
+          schema:
+            type: string
+          example: PETR4
+      responses:
+        '200':
+          description: Asset data found
+          content:
+            application/json:
+              example:
+                ticker: PETR4
+                data:
+                  ticker: PETR4
+                  company: PETROBRAS
+                  date: '2025-08-29'
+                  close: 37.12
+                  volume: 1234567
+                  return_5d: 0.023
+                  volatility_20d: 0.15
+        '400':
+          description: Invalid ticker
+          content:
+            application/json:
+              example:
+                error: Invalid ticker
+                message: Ticker must be a non-empty string
+        '404':
+          description: Asset not found
+          content:
+            application/json:
+              example:
+                error: Asset not found
+                ticker: PETR4
+  /assets:
+    get:
+      summary: List available assets with search and pagination
+      tags:
+        - Assets
+      parameters:
+        - name: search
+          in: query
+          required: false
+          schema:
+            type: string
+          example: PETR
+        - name: page
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 1
+          example: 1
+        - name: page_size
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 20
+            maximum: 100
+          example: 20
+      responses:
+        '200':
+          description: Paginated asset list
+          content:
+            application/json:
+              example:
+                assets:
+                  - ticker: PETR4
+                    company: PETROBRAS
+                  - ticker: VALE3
+                    company: VALE S.A.
+                pagination:
+                  page: 1
+                  page_size: 20
+                  total_count: 2
+                  total_pages: 1
+                  has_next: false
+                  has_prev: false
+                search_term: PETR
+        '400':
+          description: Invalid parameter
+          content:
+            application/json:
+              example:
+                error: Invalid page number
+                message: Page must be greater than 0
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              example:
+                error: Internal server error
+                message: Unexpected error
+  /scheduled/b3-data-update:
+    post:
+      summary: Fetch B3 data and update the b3_hist table
+      tags:
+        - Data Update
+      responses:
+        '200':
+          description: B3 data successfully updated
+          content:
+            application/json:
+              example:
+                status: success
+                message: B3 data successfully updated
+                statistics:
+                  total_records: 123456
+                  date_range:
+                    earliest: '2020-01-01'
+                    latest: '2025-08-29'
+        '400':
+          description: No data retrieved
+          content:
+            application/json:
+              example:
+                error: No data retrieved
+                message: B3ScrapperService returned empty data
+        '500':
+          description: Failed to update B3 data
+          content:
+            application/json:
+              example:
+                error: Failed to update B3 data
+                message: Unexpected error
+  /health:
+    get:
+      summary: Health check endpoint
+      tags:
+        - Health
+      responses:
+        '200':
+          description: API is healthy
+          content:
+            application/json:
+              example:
+                status: healthy

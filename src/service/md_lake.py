@@ -158,3 +158,24 @@ class MotherDuckLakeService(object):
 
     def delete_lake(self):
         pass
+
+    def fetch_latest_asset_row(self, ticker: str):
+        """
+        Fetch the most recent row for a given ticker from the b3_hist table.
+        Args:
+            ticker: Asset ticker symbol
+        Returns:
+            DataFrame with the latest row for the ticker, or empty DataFrame if not found
+        """
+        query = f"""
+        SELECT * FROM b3_hist
+        WHERE TRIM(ticker) = '{ticker.strip().upper()}'
+        ORDER BY date DESC
+        LIMIT 1
+        """
+        try:
+            df = self._md.execute(query).df()
+            return df
+        except Exception as e:
+            logging.error(f"Error fetching latest asset row for {ticker}: {e}")
+            return pd.DataFrame()

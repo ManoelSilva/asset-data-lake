@@ -1,5 +1,9 @@
+import os
+
 from dotenv import load_dotenv
 from flask import Flask, jsonify, request
+from flask_cors import CORS
+from flask_swagger_ui import get_swaggerui_blueprint
 
 from service.asset_handler import AssetHandler
 from service.md_lake import MotherDuckLakeService
@@ -8,9 +12,38 @@ from service.scrapper import B3ScrapperService
 load_dotenv()
 
 app = Flask(__name__)
+CORS(app)
 b3_scrapper = B3ScrapperService()
 md_lake = MotherDuckLakeService()
 asset_handler = AssetHandler()
+
+SWAGGER_URL = '/swagger'
+API_URL = '/swagger.yaml'
+
+"""
+Swagger UI is available at /swagger
+The OpenAPI YAML spec is served at /swagger.yaml
+"""
+swaggerui_blueprint = get_swaggerui_blueprint(
+    SWAGGER_URL,
+    API_URL,
+    config={
+        'app_name': "Asset Data Lake API"
+    }
+)
+app.register_blueprint(swaggerui_blueprint, url_prefix=SWAGGER_URL)
+
+
+@app.route('/swagger.yaml')
+def swagger_yaml():
+    """
+    Serve the OpenAPI (Swagger) YAML specification for the API.
+    This is used by the Swagger UI at /swagger.
+    """
+    yaml_path = os.path.join(os.path.dirname(__file__), 'swagger.yaml')
+    with open(yaml_path, 'r') as f:
+        swagger_spec = f.read()
+    return app.response_class(swagger_spec, mimetype='application/yaml')
 
 
 @app.route('/asset/<ticker>', methods=['GET'])

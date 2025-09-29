@@ -28,15 +28,21 @@ class AssetService:
         Returns:
             Dictionary with transformed asset data including all engineered features
         """
-        if not SCRAPPER_AVAILABLE:
-            raise Exception("Scrapper service is not available. Cannot fetch asset data.")
+        try:
+            if not SCRAPPER_AVAILABLE:
+                raise Exception("Scrapper service is not available. Cannot fetch asset data.")
+            # First, get the single asset data from scrapper
+            b3_data = self._scrapper.fetch_data()
+            asset_data = b3_data[b3_data['ticker'].str.strip() == ticker.upper()]
+        except Exception as e:
+            asset_data = None
 
-        # First, get the single asset data from scrapper
-        b3_data = self._scrapper.fetch_data()
-        asset_data = b3_data[b3_data['ticker'].str.strip() == ticker.upper()]
-
-        if asset_data.empty:
-            return None
+        # Fallback if asset_data is None or empty
+        if asset_data is None or asset_data.empty:
+            # Try to fetch the latest asset row from the database
+            asset_data = self._md_lake.fetch_latest_asset_row(ticker)
+            if asset_data is None or asset_data.empty:
+                return None
 
         # If target_date is specified, filter to that date
         if target_date:

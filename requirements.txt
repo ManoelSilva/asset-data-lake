@@ -1,3 +1,4 @@
+flask-cors
 pandas
 numpy
 pyarrow
@@ -7,3 +8,4 @@ duckdb==1.2.2
 python-dotenv
 asset-model-data-storage
 flask
+Flask-Swagger-UI
