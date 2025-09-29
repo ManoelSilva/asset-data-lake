@@ -133,5 +133,28 @@ class MotherDuckLakeService(object):
         # If no exact match, return the last row (most recent)
         return transformed_data.tail(1) if not transformed_data.empty else pd.DataFrame()
 
+    def update_b3_hist_table(self, b3_data):
+        """
+        Update the b3_hist table with new B3 data (DataFrame).
+        Creates the table if it does not exist, then inserts or replaces data.
+        """
+        self._md.execute("CREATE TABLE IF NOT EXISTS b3_hist AS SELECT * FROM b3_data LIMIT 0")
+        self._md.execute("INSERT OR REPLACE INTO b3_hist SELECT * FROM b3_data")
+
+    def get_b3_hist_stats(self):
+        """
+        Get statistics for the b3_hist table: total records, earliest and latest date.
+        """
+        total_records = self._md.execute("SELECT COUNT(*) FROM b3_hist").fetchone()[0]
+        latest_date = self._md.execute("SELECT MAX(date) FROM b3_hist").fetchone()[0]
+        earliest_date = self._md.execute("SELECT MIN(date) FROM b3_hist").fetchone()[0]
+        return {
+            'total_records': total_records,
+            'date_range': {
+                'earliest': str(earliest_date) if earliest_date else None,
+                'latest': str(latest_date) if latest_date else None
+            }
+        }
+
     def delete_lake(self):
         pass
