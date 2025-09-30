@@ -2,7 +2,7 @@ import logging
 
 from dotenv import load_dotenv
 
-from service.md_lake import MotherDuckLakeService
+from service.db.md_lake import MotherDuckLakeService
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s %(levelname)s %(message)s')
 

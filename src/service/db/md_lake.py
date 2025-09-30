@@ -5,6 +5,19 @@ import pandas as pd
 
 from b3.parser import B3HistFileParser
 from b3.transformer import B3Transformer
+from service.db.md_query import (
+    CREATE_B3_HIST_FROM_DF,
+    CREATE_B3_FEATURED_FROM_DF,
+    CREATE_B3_HIST_FROM_B3_DATA,
+    INSERT_OR_REPLACE_B3_HIST,
+    SELECT_ALL_B3_HIST,
+    SELECT_B3_HIST_COUNT,
+    SELECT_B3_HIST_MAX_DATE,
+    SELECT_B3_HIST_MIN_DATE,
+    primary_query,
+    fallback_query,
+    fetch_latest_asset_row_query
+)
 
 
 class MotherDuckLakeService(object):
@@ -14,12 +27,12 @@ class MotherDuckLakeService(object):
 
     def create_b3_lake(self):
         df = self._b3_parser.parse_b3_hist_quota()
-        self._md.execute("CREATE TABLE IF NOT EXISTS b3_hist AS SELECT * FROM df")
+        self._md.execute(CREATE_B3_HIST_FROM_DF())
 
     def create_b3_featured_lake(self):
-        logging.info(f"Creating B3 featured lake..")
-        df = B3Transformer.transform_b3_hist_quota(self._md.execute("SELECT * FROM b3_hist").df())
-        self._md.execute("CREATE TABLE IF NOT EXISTS b3_featured AS SELECT * FROM df")
+        logging.info("Creating B3 featured lake..")
+        df = B3Transformer.transform_b3_hist_quota(self._md.execute(SELECT_ALL_B3_HIST).df())
+        self._md.execute(CREATE_B3_FEATURED_FROM_DF)
 
     def fetch_asset_with_historical_context(self, single_asset_data: pd.DataFrame, days_back: int = 30) -> pd.DataFrame:
         """
@@ -51,16 +64,9 @@ class MotherDuckLakeService(object):
         # We need data from (target_date - days_back) to target_date for the specific ticker
         # If the window is sparse, we will fallback to fetch the most recent older rows
         # before target_date until we have enough history.
-        primary_query = f"""
-        SELECT * FROM b3_hist 
-        WHERE TRIM(ticker) = '{ticker}' 
-        AND date <= CAST('{target_date}' AS DATE)
-        AND date >= CAST('{target_date}' AS DATE) - INTERVAL {days_back} DAY
-        ORDER BY date ASC
-        """
-
+        primary_query_str = primary_query(ticker, target_date, days_back)
         try:
-            historical_data = self._md.execute(primary_query).df()
+            historical_data = self._md.execute(primary_query_str).df()
 
             # Remove the single asset date if it exists to avoid duplicates later
             historical_data = historical_data[historical_data['date'] != target_date]
@@ -72,17 +78,8 @@ class MotherDuckLakeService(object):
             # Fallback: fetch most recent older rows before target_date if window is sparse
             if len(historical_data) < required_hist_rows:
                 missing = required_hist_rows - len(historical_data)
-                fallback_query = f"""
-                SELECT * FROM (
-                    SELECT * FROM b3_hist
-                    WHERE TRIM(ticker) = '{ticker}'
-                    AND date < CAST('{target_date}' AS DATE)
-                    ORDER BY date DESC
-                    LIMIT {missing}
-                ) t
-                ORDER BY date ASC
-                """
-                older_data = self._md.execute(fallback_query).df()
+                fallback_query_str = fallback_query(ticker, target_date, missing)
+                older_data = self._md.execute(fallback_query_str).df()
                 if not older_data.empty:
                     historical_data = pd.concat([older_data, historical_data], ignore_index=True)
 
@@ -138,16 +135,16 @@ class MotherDuckLakeService(object):
         Update the b3_hist table with new B3 data (DataFrame).
         Creates the table if it does not exist, then inserts or replaces data.
         """
-        self._md.execute("CREATE TABLE IF NOT EXISTS b3_hist AS SELECT * FROM b3_data LIMIT 0")
-        self._md.execute("INSERT OR REPLACE INTO b3_hist SELECT * FROM b3_data")
+        self._md.execute(CREATE_B3_HIST_FROM_B3_DATA)
+        self._md.execute(INSERT_OR_REPLACE_B3_HIST)
 
     def get_b3_hist_stats(self):
         """
         Get statistics for the b3_hist table: total records, earliest and latest date.
         """
-        total_records = self._md.execute("SELECT COUNT(*) FROM b3_hist").fetchone()[0]
-        latest_date = self._md.execute("SELECT MAX(date) FROM b3_hist").fetchone()[0]
-        earliest_date = self._md.execute("SELECT MIN(date) FROM b3_hist").fetchone()[0]
+        total_records = self._md.execute(SELECT_B3_HIST_COUNT).fetchone()[0]
+        latest_date = self._md.execute(SELECT_B3_HIST_MAX_DATE).fetchone()[0]
+        earliest_date = self._md.execute(SELECT_B3_HIST_MIN_DATE).fetchone()[0]
         return {
             'total_records': total_records,
             'date_range': {
@@ -167,15 +164,28 @@ class MotherDuckLakeService(object):
         Returns:
             DataFrame with the latest row for the ticker, or empty DataFrame if not found
         """
-        query = f"""
-        SELECT * FROM b3_hist
-        WHERE TRIM(ticker) = '{ticker.strip().upper()}'
-        ORDER BY date DESC
-        LIMIT 1
-        """
+        query = fetch_latest_asset_row_query(ticker)
         try:
             df = self._md.execute(query).df()
             return df
         except Exception as e:
             logging.error(f"Error fetching latest asset row for {ticker}: {e}")
             return pd.DataFrame()
+
+    def get_last_available_date(self):
+        """
+        Returns the last (max) date available in the b3_hist table as a datetime.date object, or None if not available.
+        """
+        try:
+            result = self._md.execute(SELECT_B3_HIST_MAX_DATE).fetchone()
+            if result and result[0]:
+                # If result[0] is a string, convert to date
+                import datetime
+                if isinstance(result[0], str):
+                    return datetime.date.fromisoformat(result[0])
+                elif isinstance(result[0], (datetime.date, datetime.datetime)):
+                    return result[0].date() if isinstance(result[0], datetime.datetime) else result[0]
+            return None
+        except Exception as e:
+            logging.error(f"Error fetching last available date from b3_hist: {e}")
+            return None
