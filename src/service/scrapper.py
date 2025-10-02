@@ -8,7 +8,7 @@ import requests
 from asset_model_data_storage.data_storage_service import DataStorageService
 
 from b3.parser import B3HistFileParser
-from service.business_day import BusinessDayService
+from src.service.business_day import BusinessDayService
 
 SUCCESS = 200
 
