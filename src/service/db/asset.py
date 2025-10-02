@@ -1,5 +1,5 @@
-from src.service.db.md_lake import MotherDuckLakeService
-from src.service.scrapper import B3ScrapperService
+from service.db.md_lake import MotherDuckLakeService
+from service.scrapper import B3ScrapperService
 
 
 class AssetService:
