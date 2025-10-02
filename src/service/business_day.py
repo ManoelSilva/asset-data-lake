@@ -3,7 +3,7 @@ from datetime import date, timedelta
 
 import requests
 
-from src.service.db.md_lake import MotherDuckLakeService
+from service.db.md_lake import MotherDuckLakeService
 
 
 class BusinessDayService:

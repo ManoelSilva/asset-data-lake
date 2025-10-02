@@ -1,4 +1,4 @@
-from src.service.db.asset import AssetService
+from service.db.asset import AssetService
 
 
 class AssetApiHandler:

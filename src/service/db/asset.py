@@ -1,6 +1,6 @@
-from service.db.md_lake import MotherDuckLakeService
+from src.service.db.md_lake import MotherDuckLakeService
+from src.service.scrapper import B3ScrapperService
 
-from service.scrapper import B3ScrapperService
 
 class AssetService:
     def __init__(self, md_lake: MotherDuckLakeService, scrapper: B3ScrapperService):
