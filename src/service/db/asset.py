@@ -1,21 +1,11 @@
-from service.md_lake import MotherDuckLakeService
+from service.db.md_lake import MotherDuckLakeService
 
-try:
-    from service.scrapper import B3ScrapperService
-
-    SCRAPPER_AVAILABLE = True
-except ImportError:
-    SCRAPPER_AVAILABLE = False
-    B3ScrapperService = None
-
+from service.scrapper import B3ScrapperService
 
 class AssetService:
-    def __init__(self):
-        if SCRAPPER_AVAILABLE:
-            self._scrapper = B3ScrapperService()
-        else:
-            self._scrapper = None
-        self._md_lake = MotherDuckLakeService()
+    def __init__(self, md_lake: MotherDuckLakeService, scrapper: B3ScrapperService):
+        self._scrapper = scrapper
+        self._md_lake = md_lake
 
     def get_asset(self, ticker: str, target_date: str = None):
         """
@@ -28,14 +18,9 @@ class AssetService:
         Returns:
             Dictionary with transformed asset data including all engineered features
         """
-        try:
-            if not SCRAPPER_AVAILABLE:
-                raise Exception("Scrapper service is not available. Cannot fetch asset data.")
-            # First, get the single asset data from scrapper
-            b3_data = self._scrapper.fetch_data()
-            asset_data = b3_data[b3_data['ticker'].str.strip() == ticker.upper()]
-        except Exception as e:
-            asset_data = None
+        # First, get the single asset data from scrapper
+        b3_data = self._scrapper.fetch_data()
+        asset_data = b3_data[b3_data['ticker'].str.strip() == ticker.upper()]
 
         # Fallback if asset_data is None or empty
         if asset_data is None or asset_data.empty:

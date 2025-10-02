@@ -5,17 +5,19 @@ from flask import Flask, jsonify, request
 from flask_cors import CORS
 from flask_swagger_ui import get_swaggerui_blueprint
 
-from service.asset_handler import AssetHandler
-from service.md_lake import MotherDuckLakeService
+from service.asset_handler import AssetApiHandler
+from service.business_day import BusinessDayService
+from service.db.asset import AssetService
+from service.db.md_lake import MotherDuckLakeService
 from service.scrapper import B3ScrapperService
 
 load_dotenv()
 
 app = Flask(__name__)
 CORS(app)
-b3_scrapper = B3ScrapperService()
 md_lake = MotherDuckLakeService()
-asset_handler = AssetHandler()
+b3_scrapper = B3ScrapperService(BusinessDayService(md_lake))
+asset_handler = AssetApiHandler(AssetService(md_lake, b3_scrapper))
 
 SWAGGER_URL = '/swagger'
 API_URL = '/swagger.yaml'

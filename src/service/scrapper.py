@@ -8,6 +8,7 @@ import requests
 from asset_model_data_storage.data_storage_service import DataStorageService
 
 from b3.parser import B3HistFileParser
+from service.business_day import BusinessDayService
 
 SUCCESS = 200
 
@@ -15,12 +16,12 @@ SUCCESS = 200
 class B3ScrapperService:
     _URL = 'https://bvmf.bmfbovespa.com.br/InstDados/SerHist/COTAHIST_D{0}.ZIP'
 
-    def __init__(self):
+    def __init__(self, business_day: BusinessDayService):
         self._data_storage_handler = DataStorageService().get_storage_handler()
+        self._business_day = business_day
 
     def fetch_data(self):
-        # file_name = datetime.now().strftime("%d%m%Y")
-        file_name = "25092025"  # Using a fixed date for testing purposes
+        file_name = self._business_day.get_last_business_day().strftime("%d%m%Y")
         file_path = f'b3/assets/{file_name}.zip'
         if self._data_storage_handler.file_exists(file_path):
             return self._parse_file(file_name, self._data_storage_handler.load_file(file_path))
