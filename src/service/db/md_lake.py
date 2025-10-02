@@ -5,7 +5,7 @@ import pandas as pd
 
 from b3.parser import B3HistFileParser
 from b3.transformer import B3Transformer
-from src.service.db.md_query import (
+from service.db.md_query import (
     CREATE_B3_HIST_FROM_DF,
     CREATE_B3_FEATURED_FROM_DF,
     CREATE_B3_HIST_FROM_B3_DATA,
