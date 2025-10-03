@@ -4,7 +4,10 @@ info:
   description: API for querying and updating B3 asset data lake.
   version: 1.0.0
 servers:
-  - url: http://localhost:5002
+  - description: Local server
+    url: http://localhost:5002
+  - description: EC2 server
+    url: http://PUBLIC_IP:5002
 paths:
   /asset/{ticker}:
     get:
