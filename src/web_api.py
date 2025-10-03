@@ -4,6 +4,7 @@ from dotenv import load_dotenv
 from flask import Flask, jsonify, request
 from flask_cors import CORS
 from flask_swagger_ui import get_swaggerui_blueprint
+from waitress import serve
 
 from service.asset_handler import AssetApiHandler
 from service.business_day import BusinessDayService
@@ -150,4 +151,5 @@ def health_check():
 
 
 if __name__ == '__main__':
-    app.run(debug=True, host='0.0.0.0', port=5002)
+    # Use waitress for production serving
+    serve(app, host='0.0.0.0', port=5002)
