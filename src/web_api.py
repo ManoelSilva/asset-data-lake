@@ -64,6 +64,28 @@ def get_asset(ticker):
     return jsonify(response), status
 
 
+@app.route('/asset/<ticker>/history', methods=['GET'])
+def get_asset_history(ticker):
+    """
+    Get historical data for an asset.
+    
+    Args:
+        ticker (str): The ticker symbol
+        
+    Query Parameters:
+        days (int): Number of days of historical data (default: 52)
+        end_date (str): End date in YYYY-MM-DD format (default: today)
+        
+    Returns:
+        JSON response with historical data
+    """
+    days = request.args.get('days', 52)
+    end_date = request.args.get('end_date')
+    
+    response, status = asset_handler.get_asset_history(ticker, days, end_date)
+    return jsonify(response), status
+
+
 @app.route('/assets', methods=['GET'])
 def list_assets():
     """

@@ -172,6 +172,34 @@ class MotherDuckLakeService(object):
             logging.error(f"Error fetching latest asset row for {ticker}: {e}")
             return pd.DataFrame()
 
+    def get_historical_data(self, ticker: str, days: int, end_date: str = None) -> pd.DataFrame:
+        """
+        Fetch historical data for a specific ticker.
+        
+        Args:
+            ticker: Asset ticker symbol
+            days: Number of days of historical data to fetch
+            end_date: End date in YYYY-MM-DD format (optional)
+            
+        Returns:
+            DataFrame with historical data
+        """
+        import datetime
+        
+        if not end_date:
+            # Use today as default end date
+            end_date = datetime.date.today().isoformat()
+            
+        query = primary_query(ticker, end_date, days)
+        
+        try:
+            logging.info(f"Fetching historical data for {ticker} (days={days}, end_date={end_date})")
+            df = self._md.execute(query).df()
+            return df
+        except Exception as e:
+            logging.error(f"Error fetching historical data for {ticker}: {str(e)}")
+            return pd.DataFrame()
+
     def get_last_available_date(self):
         """
         Returns the last (max) date available in the b3_hist table as a datetime.date object, or None if not available.
