@@ -1,3 +1,4 @@
+import logging
 import os
 
 from dotenv import load_dotenv
@@ -13,7 +14,7 @@ from service.db.md_lake import MotherDuckLakeService
 from service.scrapper import B3ScrapperService
 
 load_dotenv()
-
+logging.getLogger().setLevel(logging.INFO)
 app = Flask(__name__)
 CORS(app)
 md_lake = MotherDuckLakeService()
@@ -81,7 +82,7 @@ def get_asset_history(ticker):
     """
     days = request.args.get('days', 52)
     end_date = request.args.get('end_date')
-    
+
     response, status = asset_handler.get_asset_history(ticker, days, end_date)
     return jsonify(response), status
 
