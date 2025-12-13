@@ -9,6 +9,8 @@ from service.db.md_query import (
     CREATE_B3_HIST_FROM_DF,
     CREATE_B3_FEATURED_FROM_DF,
     CREATE_B3_HIST_FROM_B3_DATA,
+    CREATE_UNIQUE_INDEX_B3_HIST,
+    DEDUPLICATE_B3_HIST,
     INSERT_OR_REPLACE_B3_HIST,
     SELECT_ALL_B3_HIST,
     SELECT_B3_HIST_COUNT,
@@ -136,6 +138,17 @@ class MotherDuckLakeService(object):
         Creates the table if it does not exist, then inserts or replaces data.
         """
         self._md.execute(CREATE_B3_HIST_FROM_B3_DATA)
+
+        # Ensure unique index exists for INSERT OR REPLACE
+        try:
+            self._md.execute(CREATE_UNIQUE_INDEX_B3_HIST)
+        except Exception:
+            # If index creation failed, it might be due to duplicates.
+            # Try to deduplicate and create index again.
+            logging.info("Index creation failed, attempting to deduplicate b3_hist...")
+            self._md.execute(DEDUPLICATE_B3_HIST)
+            self._md.execute(CREATE_UNIQUE_INDEX_B3_HIST)
+
         self._md.execute(INSERT_OR_REPLACE_B3_HIST)
 
     def get_b3_hist_stats(self):
@@ -185,13 +198,13 @@ class MotherDuckLakeService(object):
             DataFrame with historical data
         """
         import datetime
-        
+
         if not end_date:
             # Use today as default end date
             end_date = datetime.date.today().isoformat()
-            
+
         query = primary_query(ticker, end_date, days)
-        
+
         try:
             logging.info(f"Fetching historical data for {ticker} (days={days}, end_date={end_date})")
             df = self._md.execute(query).df()
