@@ -148,8 +148,10 @@ paths:
                 assets:
                   - ticker: PETR4
                     company: PETROBRAS
+                    close: 37.12
                   - ticker: VALE3
                     company: VALE S.A.
+                    close: 68.50
                 pagination:
                   page: 1
                   page_size: 20
