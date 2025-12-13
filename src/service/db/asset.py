@@ -59,7 +59,7 @@ class AssetService:
         Returns:
             List of dictionaries with historical data
         """
-        df = self._md_lake.get_historical_data(ticker, days, end_date)
+        df = self._md_lake.get_transformed_historical_data(ticker, days, end_date)
         if df.empty:
             return []
 
