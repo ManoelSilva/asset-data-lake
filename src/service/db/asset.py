@@ -62,11 +62,11 @@ class AssetService:
         df = self._md_lake.get_historical_data(ticker, days, end_date)
         if df.empty:
             return []
-        
+
         # Convert date column to string for JSON serialization
         if 'date' in df.columns:
             df['date'] = df['date'].astype(str)
-            
+
         return df.to_dict('records')
 
     def list_assets(self, search_term: str = None, page: int = 1, page_size: int = 20):

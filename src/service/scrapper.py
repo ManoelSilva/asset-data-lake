@@ -1,7 +1,9 @@
+import logging
 import os
 import shutil
 import tempfile
 import zipfile
+from datetime import timedelta
 from pathlib import Path
 
 import requests
@@ -20,13 +22,40 @@ class B3ScrapperService:
         self._data_storage_handler = DataStorageService().get_storage_handler()
         self._business_day = business_day
 
-    def fetch_data(self):
-        file_name = self._business_day.get_last_business_day().strftime("%d%m%Y")
-        file_path = f'b3/assets/{file_name}.zip'
-        if self._data_storage_handler.file_exists(file_path):
-            return self._parse_file(file_name, self._data_storage_handler.load_file(file_path))
-        else:
-            return self._scrape(file_name, file_path)
+    def fetch_data(self, target_date=None):
+        if target_date is None:
+            target_date = self._business_day.get_last_business_day()
+
+        if target_date is None:
+            raise ValueError("Could not determine target date for fetching data")
+
+        max_retries = 5
+        attempts = 0
+
+        while attempts < max_retries:
+            file_name = target_date.strftime("%d%m%Y")
+            file_path = f'b3/assets/{file_name}.zip'
+
+            try:
+                if self._data_storage_handler.file_exists(file_path):
+                    logging.info(f"Loading local file: {file_path}")
+                    return self._parse_file(file_name, self._data_storage_handler.load_file(file_path))
+                else:
+                    logging.info(f"File {file_path} not found locally. Scraping...")
+                    return self._scrape(file_name, file_path)
+
+            except requests.exceptions.HTTPError as e:
+                if e.response.status_code == 404:
+                    logging.warning(f"File {file_name}.zip not found on B3. Trying previous business day...")
+                    # Get previous business day relative to current target_date
+                    target_date = self._business_day.get_last_business_day(target_date - timedelta(days=1))
+                    if target_date is None:
+                        raise ValueError("Could not determine previous business day")
+                    attempts += 1
+                else:
+                    raise e
+
+        raise Exception(f"Could not fetch B3 data after {max_retries} attempts.")
 
     def _scrape(self, file_name: str, file_path: str):
         url = self._URL.format(file_name)
