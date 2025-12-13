@@ -100,7 +100,7 @@ class AssetService:
             # Add QUALIFY to get unique latest per ticker
             base_query_parts.append("QUALIFY ROW_NUMBER() OVER (PARTITION BY ticker ORDER BY date DESC) = 1")
             
-            base_query = "\\n".join(base_query_parts)
+            base_query = " ".join(base_query_parts)
 
             # Calculate offset for pagination
             offset = (page - 1) * page_size
