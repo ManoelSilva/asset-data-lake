@@ -9,6 +9,8 @@ from service.db.md_query import (
     CREATE_B3_HIST_FROM_DF,
     CREATE_B3_FEATURED_FROM_DF,
     CREATE_B3_HIST_FROM_B3_DATA,
+    CREATE_UNIQUE_INDEX_B3_HIST,
+    DEDUPLICATE_B3_HIST,
     INSERT_OR_REPLACE_B3_HIST,
     SELECT_ALL_B3_HIST,
     SELECT_B3_HIST_COUNT,
@@ -22,7 +24,7 @@ from service.db.md_query import (
 
 class MotherDuckLakeService(object):
     def __init__(self):
-        self._b3_parser = B3HistFileParser(file_path='assets/COTAHIST_M082025.txt')
+        self._b3_parser = B3HistFileParser(file_path='b3/assets/COTAHIST_A2025.txt')
         self._md = duckdb.connect('md:b3')
 
     def create_b3_lake(self):
@@ -136,6 +138,17 @@ class MotherDuckLakeService(object):
         Creates the table if it does not exist, then inserts or replaces data.
         """
         self._md.execute(CREATE_B3_HIST_FROM_B3_DATA)
+
+        # Ensure unique index exists for INSERT OR REPLACE
+        try:
+            self._md.execute(CREATE_UNIQUE_INDEX_B3_HIST)
+        except Exception:
+            # If index creation failed, it might be due to duplicates.
+            # Try to deduplicate and create index again.
+            logging.info("Index creation failed, attempting to deduplicate b3_hist...")
+            self._md.execute(DEDUPLICATE_B3_HIST)
+            self._md.execute(CREATE_UNIQUE_INDEX_B3_HIST)
+
         self._md.execute(INSERT_OR_REPLACE_B3_HIST)
 
     def get_b3_hist_stats(self):
@@ -170,6 +183,81 @@ class MotherDuckLakeService(object):
             return df
         except Exception as e:
             logging.error(f"Error fetching latest asset row for {ticker}: {e}")
+            return pd.DataFrame()
+
+    def get_historical_data(self, ticker: str, days: int, end_date: str = None) -> pd.DataFrame:
+        """
+        Fetch historical data for a specific ticker.
+        
+        Args:
+            ticker: Asset ticker symbol
+            days: Number of days of historical data to fetch
+            end_date: End date in YYYY-MM-DD format (optional)
+            
+        Returns:
+            DataFrame with historical data
+        """
+        import datetime
+
+        if not end_date:
+            # Use today as default end date
+            end_date = datetime.date.today().isoformat()
+
+        query = primary_query(ticker, end_date, days)
+
+        try:
+            logging.info(f"Fetching historical data for {ticker} (days={days}, end_date={end_date})")
+            df = self._md.execute(query).df()
+            return df
+        except Exception as e:
+            logging.error(f"Error fetching historical data for {ticker}: {str(e)}")
+            return pd.DataFrame()
+
+    def get_transformed_historical_data(self, ticker: str, days: int, end_date: str = None) -> pd.DataFrame:
+        """
+        Fetch historical data for a specific ticker and apply transformations.
+
+        Args:
+            ticker: Asset ticker symbol
+            days: Number of days of historical data to return
+            end_date: End date in YYYY-MM-DD format (optional)
+
+        Returns:
+            DataFrame with transformed historical data
+        """
+        import datetime
+
+        if not end_date:
+            end_date = datetime.date.today().isoformat()
+
+        # We need extra history for calculations (at least ~40 days for 26-day EMA + warm up)
+        # Using 60 days buffer to be safe with trading vs calendar days
+        buffer_days = 60
+        total_fetch_days = days + buffer_days
+
+        query = primary_query(ticker, end_date, total_fetch_days)
+
+        try:
+            logging.info(
+                f"Fetching raw historical data for {ticker} (days={total_fetch_days}, end_date={end_date}) for transformation")
+            raw_df = self._md.execute(query).df()
+
+            if raw_df.empty:
+                return pd.DataFrame()
+
+            # Transform
+            transformed_df = B3Transformer.transform_b3_hist_quota(raw_df)
+
+            if transformed_df.empty:
+                return pd.DataFrame()
+
+            # Filter to keep only the requested window (most recent 'days')
+            result_df = transformed_df.tail(days)
+
+            return result_df
+
+        except Exception as e:
+            logging.error(f"Error fetching transformed historical data for {ticker}: {str(e)}")
             return pd.DataFrame()
 
     def get_last_available_date(self):

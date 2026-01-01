@@ -125,7 +125,7 @@ class B3Transformer(object):
                      'rsi_14',
                      'volume_change', 'avg_volume_10', 'best_buy_sell_spread', 'close_to_best_buy', 'market_type_NM',
                      'asset_type_ON', 'day_of_week', 'price_momentum_5', 'high_breakout_20', 'bollinger_upper',
-                     'stochastic_14']
+                     'stochastic_14', 'close']
         df = df[keep_cols]
         elapsed = time.time() - start_time
         logging.info(f"Transforming B3 hist quota.. (end) Elapsed: {elapsed:.2f} seconds")

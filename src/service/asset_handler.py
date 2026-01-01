@@ -14,6 +14,28 @@ class AssetApiHandler:
             return {'error': 'Asset not found', 'ticker': ticker}, 404
         return {'ticker': ticker, 'data': asset_data}, 200
 
+    def get_asset_history(self, ticker, days, end_date=None):
+        if not ticker or not isinstance(ticker, str):
+            return {'error': 'Invalid ticker', 'message': 'Ticker must be a non-empty string'}, 400
+        
+        try:
+            days = int(days)
+            if days <= 0:
+                raise ValueError
+        except (ValueError, TypeError):
+            return {'error': 'Invalid days parameter', 'message': 'Days must be a positive integer'}, 400
+            
+        data = self._asset_service.get_historical_data(ticker, days, end_date)
+        
+        # Structure the response as expected by the client:
+        # returns data list directly or dict with data key.
+        # The user snippet shows handling:
+        # if isinstance(data, list): return data, None
+        # elif isinstance(data, dict): ...
+        
+        # We will return a dict with a 'data' key containing the list
+        return {'ticker': ticker, 'data': data}, 200
+
     def list_assets(self, search_term, page, page_size):
         # Business logic, validation, and payload manipulation for list_assets
         if page < 1:

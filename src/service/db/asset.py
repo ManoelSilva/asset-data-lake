@@ -47,6 +47,28 @@ class AssetService:
         # Convert to dict for JSON serialization
         return transformed_data.to_dict('records')[0]
 
+    def get_historical_data(self, ticker: str, days: int, end_date: str = None):
+        """
+        Fetch historical data for a specific ticker.
+        
+        Args:
+            ticker: Asset ticker symbol
+            days: Number of days of historical data to fetch
+            end_date: End date in YYYY-MM-DD format (optional)
+            
+        Returns:
+            List of dictionaries with historical data
+        """
+        df = self._md_lake.get_transformed_historical_data(ticker, days, end_date)
+        if df.empty:
+            return []
+
+        # Convert date column to string for JSON serialization
+        if 'date' in df.columns:
+            df['date'] = df['date'].astype(str)
+
+        return df.to_dict('records')
+
     def list_assets(self, search_term: str = None, page: int = 1, page_size: int = 20):
         """
         List available assets from b3_featured table with search and pagination.
@@ -64,20 +86,21 @@ class AssetService:
             md_lake = self._md_lake
 
             # Build the base query
-            base_query = """
-                         SELECT DISTINCT ticker, company
-                         FROM b3_featured
-                         WHERE ticker IS NOT NULL
-                           AND company IS NOT NULL \
-                         """
+            base_query_parts = [
+                "SELECT ticker, company, close",
+                "FROM b3_featured",
+                "WHERE ticker IS NOT NULL AND company IS NOT NULL"
+            ]
 
             # Add search filter if provided and has at least 3 characters
             if search_term and len(search_term.strip()) >= 3:
                 search_term = search_term.strip().upper()
-                base_query += f" AND (UPPER(ticker) LIKE '%{search_term}%' OR UPPER(company) LIKE '%{search_term}%')"
+                base_query_parts.append(f"AND (UPPER(ticker) LIKE '%{search_term}%' OR UPPER(company) LIKE '%{search_term}%')")
 
-            # Add ordering
-            base_query += " ORDER BY ticker ASC"
+            # Add QUALIFY to get unique latest per ticker
+            base_query_parts.append("QUALIFY ROW_NUMBER() OVER (PARTITION BY ticker ORDER BY date DESC) = 1")
+            
+            base_query = " ".join(base_query_parts)
 
             # Calculate offset for pagination
             offset = (page - 1) * page_size
@@ -87,7 +110,7 @@ class AssetService:
             total_count = md_lake._md.execute(count_query).fetchone()[0]
 
             # Get paginated results
-            paginated_query = f"{base_query} LIMIT {page_size} OFFSET {offset}"
+            paginated_query = f"{base_query} ORDER BY ticker ASC LIMIT {page_size} OFFSET {offset}"
             results = md_lake._md.execute(paginated_query).df()
 
             # Convert to list of dictionaries

@@ -50,6 +50,68 @@ paths:
               example:
                 error: Asset not found
                 ticker: PETR4
+  /asset/{ticker}/history:
+    get:
+      summary: Get historical data for an asset
+      tags:
+        - Assets
+      parameters:
+        - name: ticker
+          in: path
+          required: true
+          schema:
+            type: string
+          example: PETR4
+        - name: days
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 52
+          example: 52
+        - name: end_date
+          in: query
+          required: false
+          schema:
+            type: string
+            format: date
+          example: '2025-08-29'
+      responses:
+        '200':
+          description: Historical data found
+          content:
+            application/json:
+              example:
+                ticker: PETR4
+                data:
+                  - ticker: PETR4
+                    date: '2025-08-29'
+                    open: 37.00
+                    high: 37.50
+                    low: 36.80
+                    close: 37.12
+                    volume: 1234567
+                  - ticker: PETR4
+                    date: '2025-08-28'
+                    open: 36.80
+                    high: 37.20
+                    low: 36.50
+                    close: 36.90
+                    volume: 1100000
+        '400':
+          description: Invalid parameters
+          content:
+            application/json:
+              example:
+                error: Invalid days parameter
+                message: Days must be a positive integer
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              example:
+                error: Internal server error
+                message: Unexpected error
   /assets:
     get:
       summary: List available assets with search and pagination
@@ -86,8 +148,10 @@ paths:
                 assets:
                   - ticker: PETR4
                     company: PETROBRAS
+                    close: 37.12
                   - ticker: VALE3
                     company: VALE S.A.
+                    close: 68.50
                 pagination:
                   page: 1
                   page_size: 20
