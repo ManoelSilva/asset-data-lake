@@ -63,8 +63,12 @@ class B3Transformer(object):
         df['close_lag1'] = grouped['close'].shift(1)
         df['volume_lag1'] = grouped['volume'].shift(1)
         # Only keep features from the Example Feature List
-        # Daily return
-        df['daily_return'] = (df['close'] - df['open']) / df['open']
+        # Daily return (handle division by zero)
+        df['daily_return'] = np.where(
+            df['open'] != 0,
+            (df['close'] - df['open']) / df['open'],
+            0.0
+        )
         # Rolling volatility 5 (std of daily_return)
         grouped = df.groupby('ticker', group_keys=False)
         df['rolling_volatility_5'] = grouped['daily_return'].transform(lambda x: x.rolling(5).std())
@@ -80,7 +84,7 @@ class B3Transformer(object):
             delta = series.diff()
             gain = (delta.where(delta > 0, 0)).rolling(window=window).mean()
             loss = (-delta.where(delta < 0, 0)).rolling(window=window).mean()
-            rs = gain / loss
+            rs = np.where(loss != 0, gain / loss, 0.0)
             return 100 - (100 / (1 + rs))
 
         df['rsi_14'] = grouped['close'].transform(rsi)
@@ -90,8 +94,12 @@ class B3Transformer(object):
         df['avg_volume_10'] = grouped['volume'].transform(lambda x: x.rolling(10).mean())
         # Best buy/sell spread
         df['best_buy_sell_spread'] = df['best_sell'] - df['best_buy']
-        # Close to best buy
-        df['close_to_best_buy'] = (df['close'] - df['best_buy']) / df['best_buy']
+        # Close to best buy (handle division by zero)
+        df['close_to_best_buy'] = np.where(
+            df['best_buy'] != 0,
+            (df['close'] - df['best_buy']) / df['best_buy'],
+            0.0
+        )
         # Market type NM one-hot
         # Handle null/empty market values by filling with dummy value
         df['market'] = df['market'].fillna('000').astype(str)
@@ -100,8 +108,13 @@ class B3Transformer(object):
         df['asset_type_ON'] = (df['type'].astype(str).str.contains('ON')).astype(int)
         # Day of week
         df['day_of_week'] = df['date'].dt.dayofweek
-        # Price momentum 5
-        df['price_momentum_5'] = grouped['close'].transform(lambda x: (x - x.shift(5)) / x.shift(5))
+
+        # Price momentum 5 (handle division by zero)
+        def price_momentum_5_func(x):
+            shifted = x.shift(5)
+            return np.where(shifted != 0, (x - shifted) / shifted, 0.0)
+
+        df['price_momentum_5'] = grouped['close'].transform(price_momentum_5_func)
         # High breakout 20
         df['high_breakout_20'] = grouped['high'].transform(lambda x: (x == x.rolling(20).max()).astype(int))
         # Bollinger upper (20-day MA + 2*std)
